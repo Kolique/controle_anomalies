@@ -13,7 +13,7 @@ st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
 # #############################################################################
-# --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
+# --- CODE POUR L'APPLICATION 1 : RADIORELÈVE (INCHANGÉ) ---
 # #############################################################################
 
 def get_csv_delimiter_radio(file):
@@ -242,7 +242,7 @@ with tab1:
                     st.error(f"Anomalies et/ou corrections détectées : {len(anomalies_df)} lignes concernées."); anomalies_df_display = anomalies_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore'); st.dataframe(anomalies_df_display); afficher_resume_anomalies_radio(anomaly_counter)
                     anomaly_columns_map = {"Protocole Radio manquant": ['Protocole Radio'], "Marque manquante": ['Marque'], "Numéro de compteur manquant": ['Numéro de compteur'], "Numéro de tête manquant": ['Numéro de tête'], "Coordonnées GPS non numériques": ['Latitude', 'Longitude'], "Coordonnées GPS invalides": ['Latitude', 'Longitude'], "Diamètre manquant": ['Diametre'], "Année de fabrication manquante": ['Année de fabrication'], "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'], "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Diamètre hors plage": ['Diametre'], "KAMSTRUP: Protocole ≠ WMS": ['Protocole Radio'], "SAPPEL: Tête DME ≠ 15 caractères": ['Numéro de tête'], "SAPPEL: Compteur ne commence pas par C ou H": ['Numéro de compteur'], "SAPPEL: Incohérence Marque/Compteur (C)": ['Numéro de compteur'], "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque', 'Numéro de compteur'], "SAPPEL: Année >22 & Tête ≠ DME": ['Année de fabrication', 'Numéro de tête'], "SAPPEL: Année >22 & Protocole ≠ OMS": ['Année de fabrication', 'Protocole Radio'], "ITRON: Compteur ne commence pas par I ou D": ['Numéro de compteur'], "Le numéro de compteur n'est pas conforme": ['Numéro de compteur'], "Le diamètre n'est pas conforme": ['Diametre'], "L'année de millésime n'est pas conforme": ['Année de fabrication']}
                     if file_extension == 'csv':
-                        st.download_button(label="📥 Télécharger les anomalies en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
+                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
                     elif file_extension == 'xlsx':
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
@@ -287,9 +287,37 @@ with tab2:
                 with st.spinner("Contrôles en cours..."): anomalies_df, anomaly_counter = check_data_tele(df)
                 if not anomalies_df.empty:
                     st.error(f"Anomalies et/ou corrections détectées : {len(anomalies_df)} lignes concernées."); anomalies_df_display = anomalies_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore'); st.dataframe(anomalies_df_display); afficher_resume_anomalies_tele(anomaly_counter)
-                    anomaly_columns_map = {"Protocole Radio manquant": ['Protocole Radio'],"Marque manquante": ['Marque'],"Numéro de compteur manquant": ['Numéro de compteur'],"Numéro de tête manquant": ['Numéro de tête'],"Coordonnées GPS non numériques": ['Latitude', 'Longitude'],"Coordonnées GPS invalides": ['Latitude', 'Longitude'],"Diamètre manquant": ['Diametre'],"Année de fabrication manquante": ['Année de fabrication'],"KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],"KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],"SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],"SAPPEL: Incohérence Marque/Compteur (C)": ['Numéro de compteur'],"SAPPEL: Incohérence Marque/Compteur (H)": ['Marque', 'Numéro de compteur'],"ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],"ITRON manuel: doit commencer par \"I\" ou \"D\"": ['Numéro de compteur'],"SAPPEL manuel: doit commencer par \"C\" ou \"H\"": ['Numéro de compteur'],"Protocole ≠ LRA pour Traité 903/863": ['Protocole Radio', 'Traité'],"Protocole ≠ SGX pour Traité non 903/863": ['Protocole Radio', 'Traité'],"Format de compteur non FP2E": ['Numéro de compteur'],"Année millésime non conforme FP2E": ['Année de fabrication'],"Diamètre non conforme FP2E": ['Diametre'],}
+                    
+                    # --- DICTIONNAIRE CORRIGÉ CI-DESSOUS ---
+                    anomaly_columns_map = {
+                        "Protocole Radio manquant": ['Protocole Radio'],
+                        "Marque manquante": ['Marque'],
+                        "Numéro de compteur manquant": ['Numéro de compteur'],
+                        "Numéro de tête manquant": ['Numéro de tête'],
+                        "Coordonnées GPS non numériques": ['Latitude', 'Longitude'],
+                        "Coordonnées GPS invalides": ['Latitude', 'Longitude'],
+                        "Diamètre manquant": ['Diametre'],
+                        "Année de fabrication manquante": ['Année de fabrication'],
+                        "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],
+                        "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],
+                        "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],
+                        "KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],
+                        "SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],
+                        "SAPPEL: Incohérence Marque/Compteur (C)": ['Numéro de compteur'], # MODIFIÉ
+                        "SAPPEL: Incohérence Marque/Compteur (H)": ['Numéro de compteur'], # MODIFIÉ
+                        "ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],
+                        "ITRON manuel: doit commencer par \"I\" ou \"D\"": ['Numéro de compteur'],
+                        "SAPPEL manuel: doit commencer par \"C\" ou \"H\"": ['Numéro de compteur'],
+                        "Protocole ≠ LRA pour Traité 903/863": ['Protocole Radio', 'Traité'],
+                        "Protocole ≠ SGX pour Traité non 903/863": ['Protocole Radio', 'Traité'],
+                        "Format de compteur non FP2E": ['Numéro de compteur'],
+                        "Année millésime non conforme FP2E": ['Année de fabrication'],
+                        "Diamètre non conforme FP2E": ['Diametre'],
+                    }
+                    # --- FIN DE LA CORRECTION ---
+
                     if file_extension == 'csv':
-                        st.download_button(label="📥 Télécharger les anomalies en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
+                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
                     elif file_extension == 'xlsx':
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
