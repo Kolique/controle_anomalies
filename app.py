@@ -13,7 +13,7 @@ st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
 # #############################################################################
-# --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
+# --- CODE POUR L'APPLICATION 1 : RADIORELÈVE (INCHANGÉ) ---
 # #############################################################################
 
 def get_csv_delimiter_radio(file):
@@ -200,11 +200,11 @@ with tab1:
                         for r in dataframe_to_rows(anomalies_df_display, index=False, header=True): ws_all_anomalies.append(r)
                         header_font = Font(bold=True); red_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
                         for cell in ws_all_anomalies[1]: cell.font = header_font
-                        for row_num_all, df_row in enumerate(anomalies_df.iterrows(), 2):
+                        for row_num_all, df_row in enumerate(anomalies_df.iterrows()):
                             for anomaly in str(df_row[1]['Anomalie']).split(' / '):
                                 if anomaly.strip() in anomaly_columns_map:
                                     for col_name in anomaly_columns_map[anomaly.strip()]:
-                                        try: ws_all_anomalies.cell(row=row_num_all, column=list(anomalies_df_display.columns).index(col_name) + 1).fill = red_fill
+                                        try: ws_all_anomalies.cell(row=row_num_all + 2, column=list(anomalies_df_display.columns).index(col_name) + 1).fill = red_fill
                                         except ValueError: pass
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); ws_summary.append(["Type d'anomalie", "Nombre de cas"]); ws_summary['A3'].font = header_font; ws_summary['B3'].font = header_font; created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
@@ -247,11 +247,11 @@ with tab2:
                         for r in dataframe_to_rows(anomalies_df_display, index=False, header=True): ws_all_anomalies.append(r)
                         header_font = Font(bold=True); red_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
                         for cell in ws_all_anomalies[1]: cell.font = header_font
-                        for row_num_all, df_row in enumerate(anomalies_df.iterrows(), 2):
+                        for row_num_all, df_row in enumerate(anomalies_df.iterrows()):
                             for anomaly in str(df_row[1]['Anomalie']).split(' / '):
                                 if anomaly.strip() in anomaly_columns_map:
                                     for col_name in anomaly_columns_map[anomaly.strip()]:
-                                        try: ws_all_anomalies.cell(row=row_num_all, column=list(anomalies_df_display.columns).index(col_name) + 1).fill = red_fill
+                                        try: ws_all_anomalies.cell(row=row_num_all + 2, column=list(anomalies_df_display.columns).index(col_name) + 1).fill = red_fill
                                         except ValueError: pass
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); ws_summary.append(["Type d'anomalie", "Nombre de cas"]); ws_summary['A3'].font = header_font; ws_summary['B3'].font = header_font; created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
@@ -260,9 +260,19 @@ with tab2:
                             sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type).replace(' ', '_').replace('.', '').replace(':', '_').strip(); sheet_name = sheet_name[:31].rstrip('_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
                             created_sheet_names.add(sheet_name); row_num = ws_summary.max_row + 1; ws_summary.cell(row=row_num, column=1, value=anomaly_type); ws_summary.cell(row=row_num, column=2, value=count); ws_summary.cell(row=row_num, column=1).hyperlink = f"#'{sheet_name}'!A1"; ws_summary.cell(row=row_num, column=1).font = Font(underline="single", color="0563C1")
-                            ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]
-                            for r in dataframe_to_rows(filtered_df.drop(columns=['Anomalie Détaillée FP2E']), index=False, header=True): ws_detail.append(r)
+                            ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'])
+                            for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
+                            
+                            # --- CODE CORRIGÉ AJOUTÉ ICI ---
+                            for row_num_detail, df_row_detail in enumerate(filtered_df.iterrows()):
+                                for anomaly in str(df_row_detail[1]['Anomalie']).split(' / '):
+                                    if anomaly.strip() in anomaly_columns_map:
+                                        for col_name in anomaly_columns_map[anomaly.strip()]:
+                                            try: ws_detail.cell(row=row_num_detail + 2, column=list(filtered_df_display.columns).index(col_name) + 1).fill = red_fill
+                                            except ValueError: pass
+                            # --- FIN DU CODE CORRIGÉ ---
+
                             for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_telerelève.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 else: st.success("✅ Aucune anomalie détectée. Les données sont conformes.")
