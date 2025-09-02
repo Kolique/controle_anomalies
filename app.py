@@ -116,7 +116,10 @@ def check_data_radio(df):
     # NOUVELLE RÈGLE : Incohérence Type Compteur
     is_brand_ok = is_sappel | is_itron
     is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    condition_type_compteur = is_brand_ok & is_len_ok
+    # Ajout des conditions sur les caractères
+    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
+    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
+    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
     
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
@@ -224,7 +227,11 @@ def check_data_tele(df):
     # NOUVELLE RÈGLE : Incohérence Type Compteur
     is_brand_ok = is_sappel | is_itron
     is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    condition_type_compteur = is_brand_ok & is_len_ok
+    # Ajout des conditions sur les caractères
+    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
+    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
+    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
+    
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
         correct_type = rows_to_check['Numéro de compteur'].str[0] + rows_to_check['Numéro de compteur'].str[3]
