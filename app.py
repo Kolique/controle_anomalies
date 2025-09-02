@@ -75,6 +75,7 @@ def check_data_radio(df):
     df_with_anomalies['Correction Diamètre'] = ''
     df_with_anomalies['Correction Type Compteur'] = ''
     df_with_anomalies['Correction Marque'] = ''
+    df_with_anomalies['Correction Numéro de Tête'] = ''
 
     if 'Type Compteur' not in df_with_anomalies.columns:
         st.error("La colonne 'Type Compteur' est manquante dans votre fichier.")
@@ -96,7 +97,16 @@ def check_data_radio(df):
     df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[df_with_anomalies['Année de fabrication'].isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
-    df_with_anomalies.loc[(df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (~is_sappel | (annee_fabrication_num >= 22)) & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE'), 'Anomalie'] += 'Numéro de tête manquant / '
+    
+    # Règle "Numéro de tête manquant" avec correction pour KAMSTRUP
+    tete_manquante = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
+    condition_tete_sappel = tete_manquante & (~is_sappel | (annee_fabrication_num >= 22)) & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE') & (~is_kamstrup)
+    df_with_anomalies.loc[condition_tete_sappel, 'Anomalie'] += 'Numéro de tête manquant / '
+    
+    condition_tete_kamstrup = tete_manquante & is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.match(r'^\d{8}$'))
+    df_with_anomalies.loc[condition_tete_kamstrup, 'Anomalie'] += 'Numéro de tête manquant / '
+    df_with_anomalies.loc[condition_tete_kamstrup, 'Correction Numéro de Tête'] = df_with_anomalies.loc[condition_tete_kamstrup, 'Numéro de compteur']
+
     df_with_anomalies.loc[df_with_anomalies['Latitude'].isnull() | df_with_anomalies['Longitude'].isnull(), 'Anomalie'] += 'Coordonnées GPS non numériques / '
     df_with_anomalies.loc[((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180))), 'Anomalie'] += 'Coordonnées GPS invalides / '
     
@@ -110,26 +120,21 @@ def check_data_radio(df):
     df_with_anomalies.loc[is_sappel & (df_with_anomalies['Numéro de tête'].astype(str).str.upper().str.startswith('DME')) & (df_with_anomalies['Numéro de tête'].str.len() != 15), 'Anomalie'] += 'SAPPEL: Tête DME ≠ 15 caractères / '
     df_with_anomalies.loc[is_sappel & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE') & (~df_with_anomalies['Numéro de compteur'].str.startswith(('C', 'H'))), 'Anomalie'] += 'SAPPEL: Compteur ne commence pas par C ou H / '
     
-    # Règle Incohérence Marque/Compteur avec correction
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
     marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
     df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '
     df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
-
     compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H')
     marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
-
+    
     df_with_anomalies.loc[is_sappel & (annee_fabrication_num > 22) & (~df_with_anomalies['Numéro de tête'].astype(str).str.upper().str.startswith('DME')), 'Anomalie'] += 'SAPPEL: Année >22 & Tête ≠ DME / '
     df_with_anomalies.loc[is_sappel & (annee_fabrication_num > 22) & (df_with_anomalies['Protocole Radio'].str.upper() != 'OMS'), 'Anomalie'] += 'SAPPEL: Année >22 & Protocole ≠ OMS / '
     df_with_anomalies.loc[is_itron & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE') & (~df_with_anomalies['Numéro de compteur'].str.startswith(('I', 'D'))), 'Anomalie'] += 'ITRON: Compteur ne commence pas par I ou D / '
     
-    # Règle Incohérence Type Compteur
-    is_brand_ok = is_sappel | is_itron
-    is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
-    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
+    is_brand_ok = is_sappel | is_itron; is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
+    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha(); fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
     condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
@@ -137,10 +142,8 @@ def check_data_radio(df):
         incorrect_mask = rows_to_check['Type Compteur'] != correct_type
         incorrect_indices = rows_to_check[incorrect_mask].index
         if not incorrect_indices.empty:
-            df_with_anomalies.loc[incorrect_indices, 'Anomalie'] += 'Incohérence Type Compteur / '
-            df_with_anomalies.loc[incorrect_indices, 'Correction Type Compteur'] = correct_type[incorrect_mask]
+            df_with_anomalies.loc[incorrect_indices, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices, 'Correction Type Compteur'] = correct_type[incorrect_mask]
 
-    # Règle FP2E
     fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'; sappel_non_manuelle_fp2e = is_sappel & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE'); manuelle_format_ok = (df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE') & (df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False));
     fp2e_check_condition = sappel_non_manuelle_fp2e | manuelle_format_ok
     fp2e_results = df_with_anomalies[fp2e_check_condition].apply(check_fp2e_details_radio, axis=1)
@@ -151,15 +154,16 @@ def check_data_radio(df):
         if 'diametre' in corrections: df_with_anomalies.loc[index, 'Correction Diamètre'] = corrections['diametre']
 
     df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /')
-    anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '') | (df_with_anomalies['Correction Type Compteur'] != '') | (df_with_anomalies['Correction Marque'] != '')].copy()
+    anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '') | (df_with_anomalies['Correction Type Compteur'] != '') | (df_with_anomalies['Correction Marque'] != '') | (df_with_anomalies['Correction Numéro de Tête'] != '')].copy()
     anomalies_df.reset_index(inplace=True); anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
     
     try:
-        cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Type Compteur'); cols.remove('Correction Marque')
+        cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Type Compteur'); cols.remove('Correction Marque'); cols.remove('Correction Numéro de Tête')
         pos_annee = cols.index('Année de fabrication') + 1; cols.insert(pos_annee, 'Correction Année')
         pos_diametre = cols.index('Diametre') + 1; cols.insert(pos_diametre, 'Correction Diamètre')
         pos_type = cols.index('Type Compteur') + 1; cols.insert(pos_type, 'Correction Type Compteur')
         pos_marque = cols.index('Marque') + 1; cols.insert(pos_marque, 'Correction Marque')
+        pos_tete = cols.index('Numéro de tête') + 1; cols.insert(pos_tete, 'Correction Numéro de Tête')
         anomalies_df = anomalies_df[cols]
     except ValueError: pass
 
@@ -180,44 +184,32 @@ def get_csv_delimiter_tele(file):
         file.seek(0); return ','
 
 def check_fp2e_details_tele(row):
-    """
-    Vérifie les détails FP2E et retourne les anomalies ET les corrections.
-    """
-    anomalies = []
-    corrections = {}
+    anomalies, corrections = [], {}
     try:
         compteur = str(row['Numéro de compteur']).strip(); annee_fabrication_val = str(row['Année de fabrication']).strip(); diametre_val = row['Diametre']
         fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'
         if not re.match(fp2e_regex, compteur):
-            anomalies.append('Format de compteur non FP2E')
-            return anomalies, corrections
+            anomalies.append('Format de compteur non FP2E'); return anomalies, corrections
         annee_compteur = compteur[1:3]; lettre_diam = compteur[4].upper()
-        
         if not annee_fabrication_val or not annee_fabrication_val.isdigit() or annee_compteur != annee_fabrication_val.zfill(2):
-            anomalies.append('Année millésime non conforme FP2E')
-            corrections['annee'] = annee_compteur
-            
+            anomalies.append('Année millésime non conforme FP2E'); corrections['annee'] = annee_compteur
         fp2e_map = {'A': 15, 'U': 15, 'V': 15, 'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50, 'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150}
         expected_diametres = fp2e_map.get(lettre_diam, []);
         if not isinstance(expected_diametres, list): expected_diametres = [expected_diametres]
-        
         if pd.isna(diametre_val) or diametre_val not in expected_diametres:
             anomalies.append('Diamètre non conforme FP2E')
-            if lettre_diam == 'G':
-                corrections['diametre'] = '60'
-            elif expected_diametres:
-                corrections['diametre'] = str(expected_diametres[0])
+            if lettre_diam == 'G': corrections['diametre'] = '60'
+            elif expected_diametres: corrections['diametre'] = str(expected_diametres[0])
     except (TypeError, ValueError, IndexError):
         anomalies.append('Erreur de format interne')
     return anomalies, corrections
 
 def check_data_tele(df):
     df_with_anomalies = df.copy()
-    df_with_anomalies['Correction Année'] = ''; df_with_anomalies['Correction Diamètre'] = ''; df_with_anomalies['Correction Type Compteur'] = ''; df_with_anomalies['Correction Marque'] = ''
+    df_with_anomalies['Correction Année'] = ''; df_with_anomalies['Correction Diamètre'] = ''; df_with_anomalies['Correction Type Compteur'] = ''; df_with_anomalies['Correction Marque'] = ''; df_with_anomalies['Correction Numéro de Tête'] = ''
     
     if 'Type Compteur' not in df_with_anomalies.columns:
-        st.error("La colonne 'Type Compteur' est manquante dans votre fichier.")
-        st.stop()
+        st.error("La colonne 'Type Compteur' est manquante dans votre fichier."); st.stop()
 
     df_with_anomalies['Année de fabrication'] = df_with_anomalies['Année de fabrication'].astype(str).replace('nan', '', regex=False).apply(lambda x: str(int(float(x))) if x.replace('.', '', 1).isdigit() and x != '' else x).str.slice(-2).str.zfill(2)
     required_columns = ['Protocole Radio', 'Marque', 'Numéro de compteur', 'Numéro de tête', 'Latitude', 'Longitude', 'Année de fabrication', 'Diametre', 'Traité', 'Mode de relève', 'Type Compteur']
@@ -227,8 +219,16 @@ def check_data_tele(df):
     for col in ['Numéro de compteur', 'Numéro de tête', 'Marque', 'Protocole Radio', 'Traité', 'Mode de relève', 'Type Compteur']: df_with_anomalies[col] = df_with_anomalies[col].astype(str).replace('nan', '', regex=False)
     df_with_anomalies['Latitude'] = pd.to_numeric(df_with_anomalies['Latitude'], errors='coerce'); df_with_anomalies['Longitude'] = pd.to_numeric(df_with_anomalies['Longitude'], errors='coerce'); df_with_anomalies['Diametre'] = pd.to_numeric(df_with_anomalies['Diametre'], errors='coerce')
     is_kamstrup = df_with_anomalies['Marque'].str.upper() == 'KAMSTRUP'; is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)', 'SAPPEL(C)']); is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'; is_kaifa = df_with_anomalies['Marque'].str.upper() == 'KAIFA'; is_mode_manuelle = df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE'; annee_fabrication_num = pd.to_numeric(df_with_anomalies['Année de fabrication'], errors='coerce')
+    
     df_with_anomalies.loc[(df_with_anomalies['Protocole Radio'].isin(['', 'nan'])) & (~is_mode_manuelle), 'Anomalie'] += 'Protocole Radio manquant / '; df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '; df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '; df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '; df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
-    df_with_anomalies.loc[(df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (~is_kamstrup) & (~is_mode_manuelle) & (~is_kaifa), 'Anomalie'] += 'Numéro de tête manquant / '
+    
+    tete_manquante_tele = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
+    condition_tete_autre = tete_manquante_tele & (~is_kamstrup) & (~is_kaifa) & (~is_mode_manuelle)
+    df_with_anomalies.loc[condition_tete_autre, 'Anomalie'] += 'Numéro de tête manquant / '
+    condition_tete_kamstrup_tele = tete_manquante_tele & is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.match(r'^\d{8}$'))
+    df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Anomalie'] += 'Numéro de tête manquant / '
+    df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Correction Numéro de Tête'] = df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Numéro de compteur']
+    
     df_with_anomalies.loc[df_with_anomalies['Latitude'].isnull() | df_with_anomalies['Longitude'].isnull(), 'Anomalie'] += 'Coordonnées GPS non numériques / '; df_with_anomalies.loc[((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180))), 'Anomalie'] += 'Coordonnées GPS invalides / '
     kamstrup_valid = is_kamstrup & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])); df_with_anomalies.loc[is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '; df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '; df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '; df_with_anomalies.loc[is_kamstrup & (~df_with_anomalies['Diametre'].between(15, 80)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 80] / '
     df_with_anomalies.loc[is_sappel & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 16), 'Anomalie'] += 'SAPPEL: Tête ≠ 16 caractères / ';
@@ -269,14 +269,15 @@ def check_data_tele(df):
     is_fp2e_compliant = df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False)
     df_with_anomalies.loc[is_mode_manuelle & is_itron & is_fp2e_compliant & (~df_with_anomalies['Numéro de compteur'].str.lower().str.startswith(('i', 'd'), na=False)), 'Anomalie'] += 'ITRON manuel: doit commencer par "I" ou "D" / '
     df_with_anomalies.loc[is_mode_manuelle & is_sappel & is_fp2e_compliant & (~df_with_anomalies['Numéro de compteur'].str.lower().str.startswith(('c', 'h'), na=False)), 'Anomalie'] += 'SAPPEL manuel: doit commencer par "C" ou "H" / '
-    df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /'); anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '')| (df_with_anomalies['Correction Type Compteur'] != '') | (df_with_anomalies['Correction Marque'] != '')].copy(); anomalies_df.reset_index(inplace=True); anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
+    df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /'); anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '')| (df_with_anomalies['Correction Type Compteur'] != '') | (df_with_anomalies['Correction Marque'] != '') | (df_with_anomalies['Correction Numéro de Tête'] != '')].copy(); anomalies_df.reset_index(inplace=True); anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
     
     try:
-        cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Type Compteur'); cols.remove('Correction Marque')
+        cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Type Compteur'); cols.remove('Correction Marque'); cols.remove('Correction Numéro de Tête')
         pos_annee = cols.index('Année de fabrication') + 1; cols.insert(pos_annee, 'Correction Année')
         pos_diametre = cols.index('Diametre') + 1; cols.insert(pos_diametre, 'Correction Diamètre')
         pos_type = cols.index('Type Compteur') + 1; cols.insert(pos_type, 'Correction Type Compteur')
         pos_marque = cols.index('Marque') + 1; cols.insert(pos_marque, 'Correction Marque')
+        pos_tete = cols.index('Numéro de tête') + 1; cols.insert(pos_tete, 'Correction Numéro de Tête')
         anomalies_df = anomalies_df[cols]
     except ValueError: pass
 
