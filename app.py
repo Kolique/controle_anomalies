@@ -12,9 +12,7 @@ from openpyxl.utils import get_column_letter
 st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_radio(file):
     """Détecte le délimiteur d'un fichier CSV."""
@@ -193,9 +191,7 @@ def afficher_resume_anomalies_radio(anomaly_counter):
     if not anomaly_counter.empty:
         st.subheader("Récapitulatif des anomalies"); st.dataframe(pd.DataFrame(anomaly_counter).reset_index().rename(columns={"index": "Type d'anomalie", 0: "Nombre de cas"}))
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 2 : TÉLÉRELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_tele(file):
     try:
@@ -303,9 +299,7 @@ def afficher_resume_anomalies_tele(anomaly_counter):
     if not anomaly_counter.empty:
         st.subheader("Récapitulatif des anomalies"); st.dataframe(pd.DataFrame(anomaly_counter).reset_index().rename(columns={"index": "Type d'anomalie", 0: "Nombre de cas"}))
 
-# #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
-# #############################################################################
 
 tab1, tab2 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève"])
 
@@ -327,7 +321,7 @@ with tab1:
                     st.error(f"Anomalies et/ou corrections détectées : {len(anomalies_df)} lignes concernées."); anomalies_df_display = anomalies_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore'); st.dataframe(anomalies_df_display); afficher_resume_anomalies_radio(anomaly_counter)
                     anomaly_columns_map = {"KAMSTRUP: Protocole ≠ WMS": ['Protocole Radio'], "SAPPEL: Protocole ≠ OMS": ['Protocole Radio'], "SAPPEL: Protocole ≠ WMS": ['Protocole Radio'], "Marque manquante": ['Marque'], "Numéro de compteur manquant": ['Numéro de compteur'], "Numéro de tête manquant": ['Numéro de tête'], "Coordonnées GPS non numériques": ['Latitude', 'Longitude'], "Coordonnées GPS invalides": ['Latitude', 'Longitude'], "Diamètre manquant": ['Diametre'], "Année de fabrication manquante": ['Année de fabrication'], "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'], "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Diamètre hors plage": ['Diametre'], "SAPPEL: Tête DME ≠ 15 caractères": ['Numéro de tête'], "SAPPEL: Compteur ne commence pas par C ou H": ['Numéro de compteur'], "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'], "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'], "SAPPEL: Année >22 & Tête ≠ DME": ['Année de fabrication', 'Numéro de tête'], "SAPPEL: Année >22 & Protocole ≠ OMS": ['Année de fabrication', 'Protocole Radio'], "ITRON: Compteur ne commence pas par I ou D": ['Numéro de compteur'], "Le numéro de compteur n'est pas conforme": ['Numéro de compteur'], "Le diamètre n'est pas conforme": ['Diametre'], "L'année de millésime n'est pas conforme": ['Année de fabrication'], "Incohérence Type Compteur": ['Type Compteur']}
                     if file_extension == 'csv':
-                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
+                        st.download_button(label=" Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
                     elif file_extension == 'xlsx':
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
@@ -358,7 +352,7 @@ with tab1:
                                             try: ws_detail.cell(row=row_num_detail + 2, column=list(filtered_df_display.columns).index(col_name) + 1).fill = red_fill
                                             except ValueError: pass
                             for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
-                        wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_radioreleve.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                        wb.save(excel_buffer); st.download_button(label=" Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_radioreleve.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 else: st.success("✅ Aucune anomalie détectée. Les données sont conformes.")
         except Exception as e: st.error(f"Une erreur est survenue : {e}")
 
@@ -380,7 +374,7 @@ with tab2:
                     st.error(f"Anomalies et/ou corrections détectées : {len(anomalies_df)} lignes concernées."); anomalies_df_display = anomalies_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore'); st.dataframe(anomalies_df_display); afficher_resume_anomalies_tele(anomaly_counter)
                     anomaly_columns_map = {"Protocole Radio manquant": ['Protocole Radio'],"Marque manquante": ['Marque'],"Numéro de compteur manquant": ['Numéro de compteur'],"Numéro de tête manquant": ['Numéro de tête'],"Coordonnées GPS non numériques": ['Latitude', 'Longitude'],"Coordonnées GPS invalides": ['Latitude', 'Longitude'],"Diamètre manquant": ['Diametre'],"Année de fabrication manquante": ['Année de fabrication'],"KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],"KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],"SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],"SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],"SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],"ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],"ITRON manuel: doit commencer par \"I\" ou \"D\"": ['Numéro de compteur'],"SAPPEL manuel: doit commencer par \"C\" ou \"H\"": ['Numéro de compteur'],"Protocole ≠ LRA pour Traité 903/863": ['Protocole Radio', 'Traité'],"Protocole ≠ SGX pour Traité non 903/863": ['Protocole Radio', 'Traité'],"Format de compteur non FP2E": ['Numéro de compteur'],"Année millésime non conforme FP2E": ['Année de fabrication'],"Diamètre non conforme FP2E": ['Diametre'], "Incohérence Type Compteur": ['Type Compteur']}
                     if file_extension == 'csv':
-                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
+                        st.download_button(label=" Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
                     elif file_extension == 'xlsx':
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
@@ -411,6 +405,6 @@ with tab2:
                                             try: ws_detail.cell(row=row_num_detail + 2, column=list(filtered_df_display.columns).index(col_name) + 1).fill = red_fill
                                             except ValueError: pass
                             for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
-                        wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_telerelève.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                        wb.save(excel_buffer); st.download_button(label=" Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_telerelève.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 else: st.success("✅ Aucune anomalie détectée. Les données sont conformes.")
         except Exception as e: st.error(f"Une erreur est survenue : {e}")
