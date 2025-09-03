@@ -12,9 +12,7 @@ from openpyxl.utils import get_column_letter
 st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_radio(file):
     """Détecte le délimiteur d'un fichier CSV."""
@@ -181,9 +179,7 @@ def check_data_radio(df):
 
     return anomalies_df, anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 2 : TÉLÉRELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_tele(file):
     try:
@@ -327,11 +323,9 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, is_radio=True
     summary_df = pd.DataFrame(summary_data, columns=["Type d'anomalie", "Nombre de cas", "Corrections Proposées"])
     return summary_df
 
-# #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
-# #############################################################################
 
-tab1, tab2, tab3 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève", "✍️ Controle manuelle"])
+tab1, tab2, tab3 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève", "✍️ Contrôle Manuelle"])
 
 # --- ONGLET 1 : RADIORELÈVE (INTERFACE UTILISATEUR) ---
 with tab1:
