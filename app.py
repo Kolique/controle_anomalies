@@ -135,7 +135,6 @@ def check_data_radio(df):
     condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
-        # Règle SAPPEL
         sappel_rows = rows_to_check[rows_to_check['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])]
         if not sappel_rows.empty:
             correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
@@ -144,7 +143,6 @@ def check_data_radio(df):
             if not incorrect_indices_sappel.empty:
                 df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
         
-        # Règle ITRON
         itron_rows = rows_to_check[rows_to_check['Marque'].str.upper() == 'ITRON']
         if not itron_rows.empty:
             correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
@@ -233,9 +231,6 @@ def check_data_tele(df):
     tete_manquante_tele = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
     condition_tete_autre = tete_manquante_tele & (~is_kamstrup) & (~is_kaifa) & (~is_mode_manuelle)
     df_with_anomalies.loc[condition_tete_autre, 'Anomalie'] += 'Numéro de tête manquant / '
-    condition_tete_kamstrup_tele = tete_manquante_tele & is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.match(r'^\d{8}$'))
-    df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Anomalie'] += 'Numéro de tête manquant / '
-    df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Correction Numéro de Tête'] = df_with_anomalies.loc[condition_tete_kamstrup_tele, 'Numéro de compteur']
     
     df_with_anomalies.loc[df_with_anomalies['Latitude'].isnull() | df_with_anomalies['Longitude'].isnull(), 'Anomalie'] += 'Coordonnées GPS non numériques / '; df_with_anomalies.loc[((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180))), 'Anomalie'] += 'Coordonnées GPS invalides / '
     kamstrup_valid = is_kamstrup & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])); df_with_anomalies.loc[is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '; df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '; df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '; df_with_anomalies.loc[is_kamstrup & (~df_with_anomalies['Diametre'].between(15, 80)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 80] / '
