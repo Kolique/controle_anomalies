@@ -12,7 +12,9 @@ from openpyxl.utils import get_column_letter
 st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
+# #############################################################################
 # --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
+# #############################################################################
 
 def get_csv_delimiter_radio(file):
     """Détecte le délimiteur d'un fichier CSV."""
@@ -39,15 +41,17 @@ def check_fp2e_details_radio(row):
         
         fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'
         if not re.match(fp2e_regex, compteur):
-            return [], {}
+            return [], {} # Pas au format FP2E, aucune anomalie ou correction à proposer
 
         annee_compteur = compteur[1:3]
         lettre_diam = compteur[4].upper()
         
+        # Vérification 1 : Année
         if annee_fabrication_val == '' or not annee_fabrication_val.isdigit() or annee_compteur != annee_fabrication_val.zfill(2):
             anomalies.append('L\'année de millésime n\'est pas conforme')
             corrections['annee'] = annee_compteur
 
+        # Vérification 2 : Diamètre
         fp2e_map = {'A': 15, 'U': 15, 'V': 15, 'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50, 'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150}
         expected_diametres = fp2e_map.get(lettre_diam, [])
         if not isinstance(expected_diametres, list): expected_diametres = [expected_diametres]
@@ -96,7 +100,6 @@ def check_data_radio(df):
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[df_with_anomalies['Année de fabrication'].isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
     
-    # Règle "Numéro de tête manquant" avec correction pour KAMSTRUP
     tete_manquante = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
     condition_tete_sappel = tete_manquante & (~is_sappel | (annee_fabrication_num >= 22)) & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE') & (~is_kamstrup)
     df_with_anomalies.loc[condition_tete_sappel, 'Anomalie'] += 'Numéro de tête manquant / '
@@ -118,14 +121,10 @@ def check_data_radio(df):
     df_with_anomalies.loc[is_sappel & (df_with_anomalies['Numéro de tête'].astype(str).str.upper().str.startswith('DME')) & (df_with_anomalies['Numéro de tête'].str.len() != 15), 'Anomalie'] += 'SAPPEL: Tête DME ≠ 15 caractères / '
     df_with_anomalies.loc[is_sappel & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE') & (~df_with_anomalies['Numéro de compteur'].str.startswith(('C', 'H'))), 'Anomalie'] += 'SAPPEL: Compteur ne commence pas par C ou H / '
     
-    compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
-    marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
-    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '
-    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
-    compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H')
-    marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
-    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
-    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
+    compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C'); marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
+    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '; df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
+    compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H'); marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
+    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '; df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
     
     df_with_anomalies.loc[is_sappel & (annee_fabrication_num > 22) & (~df_with_anomalies['Numéro de tête'].astype(str).str.upper().str.startswith('DME')), 'Anomalie'] += 'SAPPEL: Année >22 & Tête ≠ DME / '
     df_with_anomalies.loc[is_sappel & (annee_fabrication_num > 22) & (df_with_anomalies['Protocole Radio'].str.upper() != 'OMS'), 'Anomalie'] += 'SAPPEL: Année >22 & Protocole ≠ OMS / '
@@ -136,11 +135,23 @@ def check_data_radio(df):
     condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
-        correct_type = rows_to_check['Numéro de compteur'].str[0] + rows_to_check['Numéro de compteur'].str[3]
-        incorrect_mask = rows_to_check['Type Compteur'] != correct_type
-        incorrect_indices = rows_to_check[incorrect_mask].index
-        if not incorrect_indices.empty:
-            df_with_anomalies.loc[incorrect_indices, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices, 'Correction Type Compteur'] = correct_type[incorrect_mask]
+        # Règle SAPPEL
+        sappel_rows = rows_to_check[rows_to_check['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])]
+        if not sappel_rows.empty:
+            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
+            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
+            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
+            if not incorrect_indices_sappel.empty:
+                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
+        
+        # Règle ITRON
+        itron_rows = rows_to_check[rows_to_check['Marque'].str.upper() == 'ITRON']
+        if not itron_rows.empty:
+            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
+            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
+            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
+            if not incorrect_indices_itron.empty:
+                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
 
     fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'; sappel_non_manuelle_fp2e = is_sappel & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE'); manuelle_format_ok = (df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE') & (df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False));
     fp2e_check_condition = sappel_non_manuelle_fp2e | manuelle_format_ok
@@ -171,7 +182,9 @@ def afficher_resume_anomalies_radio(anomaly_counter):
     if not anomaly_counter.empty:
         st.subheader("Récapitulatif des anomalies"); st.dataframe(pd.DataFrame(anomaly_counter).reset_index().rename(columns={"index": "Type d'anomalie", 0: "Nombre de cas"}))
 
+# #############################################################################
 # --- CODE POUR L'APPLICATION 2 : TÉLÉRELÈVE ---
+# #############################################################################
 
 def get_csv_delimiter_tele(file):
     try:
@@ -215,7 +228,6 @@ def check_data_tele(df):
     for col in ['Numéro de compteur', 'Numéro de tête', 'Marque', 'Protocole Radio', 'Traité', 'Mode de relève', 'Type Compteur']: df_with_anomalies[col] = df_with_anomalies[col].astype(str).replace('nan', '', regex=False)
     df_with_anomalies['Latitude'] = pd.to_numeric(df_with_anomalies['Latitude'], errors='coerce'); df_with_anomalies['Longitude'] = pd.to_numeric(df_with_anomalies['Longitude'], errors='coerce'); df_with_anomalies['Diametre'] = pd.to_numeric(df_with_anomalies['Diametre'], errors='coerce')
     is_kamstrup = df_with_anomalies['Marque'].str.upper() == 'KAMSTRUP'; is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)', 'SAPPEL(C)']); is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'; is_kaifa = df_with_anomalies['Marque'].str.upper() == 'KAIFA'; is_mode_manuelle = df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE'; annee_fabrication_num = pd.to_numeric(df_with_anomalies['Année de fabrication'], errors='coerce')
-    
     df_with_anomalies.loc[(df_with_anomalies['Protocole Radio'].isin(['', 'nan'])) & (~is_mode_manuelle), 'Anomalie'] += 'Protocole Radio manquant / '; df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '; df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '; df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '; df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
     
     tete_manquante_tele = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
@@ -229,32 +241,35 @@ def check_data_tele(df):
     kamstrup_valid = is_kamstrup & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])); df_with_anomalies.loc[is_kamstrup & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '; df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '; df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '; df_with_anomalies.loc[is_kamstrup & (~df_with_anomalies['Diametre'].between(15, 80)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 80] / '
     df_with_anomalies.loc[is_sappel & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 16), 'Anomalie'] += 'SAPPEL: Tête ≠ 16 caractères / ';
     
-    compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
-    marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
-    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '
-    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
+    compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C'); marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
+    df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '; df_with_anomalies.loc[is_sappel & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
     
-    compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H')
-    marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
-    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
-    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
+    compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H'); marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
+    df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '; df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
 
     df_with_anomalies.loc[is_itron & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 8), 'Anomalie'] += 'ITRON: Tête ≠ 8 caractères / '
     is_protocole_radio_filled = ~df_with_anomalies['Protocole Radio'].isin(['', 'nan']); traite_lra_condition = df_with_anomalies['Traité'].str.startswith(('903', '863'), na=False); df_with_anomalies.loc[traite_lra_condition & (df_with_anomalies['Protocole Radio'].str.upper() != 'LRA') & (~is_mode_manuelle) & is_protocole_radio_filled, 'Anomalie'] += 'Protocole ≠ LRA pour Traité 903/863 / '; df_with_anomalies.loc[(~traite_lra_condition) & (df_with_anomalies['Protocole Radio'].str.upper() != 'SGX') & (~is_mode_manuelle) & is_protocole_radio_filled, 'Anomalie'] += 'Protocole ≠ SGX pour Traité non 903/863 / '
     
-    is_brand_ok = is_sappel | is_itron
-    is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
-    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
+    is_brand_ok = is_sappel | is_itron; is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
+    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha(); fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
     condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
-        correct_type = rows_to_check['Numéro de compteur'].str[0] + rows_to_check['Numéro de compteur'].str[3]
-        incorrect_mask = rows_to_check['Type Compteur'] != correct_type
-        incorrect_indices = rows_to_check[incorrect_mask].index
-        if not incorrect_indices.empty:
-            df_with_anomalies.loc[incorrect_indices, 'Anomalie'] += 'Incohérence Type Compteur / '
-            df_with_anomalies.loc[incorrect_indices, 'Correction Type Compteur'] = correct_type[incorrect_mask]
+        sappel_rows = rows_to_check[rows_to_check['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)', 'SAPPEL(C)'])]
+        if not sappel_rows.empty:
+            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
+            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
+            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
+            if not incorrect_indices_sappel.empty:
+                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
+        
+        itron_rows = rows_to_check[rows_to_check['Marque'].str.upper() == 'ITRON']
+        if not itron_rows.empty:
+            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
+            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
+            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
+            if not incorrect_indices_itron.empty:
+                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
     
     fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'; sappel_itron_non_manuelle = (is_sappel | is_itron) & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE'); manuelle_format_ok = (df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE') & (df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False)); fp2e_check_condition = sappel_itron_non_manuelle | manuelle_format_ok; fp2e_results = df_with_anomalies[fp2e_check_condition].apply(check_fp2e_details_tele, axis=1)
     for index, result in fp2e_results.items():
@@ -282,8 +297,10 @@ def check_data_tele(df):
 def afficher_resume_anomalies_tele(anomaly_counter):
     if not anomaly_counter.empty:
         st.subheader("Récapitulatif des anomalies"); st.dataframe(pd.DataFrame(anomaly_counter).reset_index().rename(columns={"index": "Type d'anomalie", 0: "Nombre de cas"}))
-        
+
+# #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
+# #############################################################################
 
 tab1, tab2 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève"])
 
@@ -337,7 +354,7 @@ with tab1:
                                             except ValueError: pass
                             for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_radioreleve.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                else: st.success(" Aucune anomalie détectée. Les données sont conformes.")
+                else: st.success("✅ Aucune anomalie détectée. Les données sont conformes.")
         except Exception as e: st.error(f"Une erreur est survenue : {e}")
 
 # --- ONGLET 2 : TÉLÉRELÈVE (INTERFACE UTILISATEUR) ---
@@ -358,7 +375,7 @@ with tab2:
                     st.error(f"Anomalies et/ou corrections détectées : {len(anomalies_df)} lignes concernées."); anomalies_df_display = anomalies_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore'); st.dataframe(anomalies_df_display); afficher_resume_anomalies_tele(anomaly_counter)
                     anomaly_columns_map = {"Protocole Radio manquant": ['Protocole Radio'],"Marque manquante": ['Marque'],"Numéro de compteur manquant": ['Numéro de compteur'],"Numéro de tête manquant": ['Numéro de tête'],"Coordonnées GPS non numériques": ['Latitude', 'Longitude'],"Coordonnées GPS invalides": ['Latitude', 'Longitude'],"Diamètre manquant": ['Diametre'],"Année de fabrication manquante": ['Année de fabrication'],"KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],"KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],"SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],"SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],"SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],"ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],"ITRON manuel: doit commencer par \"I\" ou \"D\"": ['Numéro de compteur'],"SAPPEL manuel: doit commencer par \"C\" ou \"H\"": ['Numéro de compteur'],"Protocole ≠ LRA pour Traité 903/863": ['Protocole Radio', 'Traité'],"Protocole ≠ SGX pour Traité non 903/863": ['Protocole Radio', 'Traité'],"Format de compteur non FP2E": ['Numéro de compteur'],"Année millésime non conforme FP2E": ['Année de fabrication'],"Diamètre non conforme FP2E": ['Diametre'], "Incohérence Type Compteur": ['Type Compteur']}
                     if file_extension == 'csv':
-                        st.download_button(label=" Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
+                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
                     elif file_extension == 'xlsx':
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
@@ -389,6 +406,6 @@ with tab2:
                                             try: ws_detail.cell(row=row_num_detail + 2, column=list(filtered_df_display.columns).index(col_name) + 1).fill = red_fill
                                             except ValueError: pass
                             for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
-                        wb.save(excel_buffer); st.download_button(label=" Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_telerelève.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                else: st.success(" Aucune anomalie détectée. Les données sont conformes.")
+                        wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_telerelève.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                else: st.success("✅ Aucune anomalie détectée. Les données sont conformes.")
         except Exception as e: st.error(f"Une erreur est survenue : {e}")
