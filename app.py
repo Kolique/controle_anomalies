@@ -376,7 +376,7 @@ with tab1:
                         for anomaly_type, count, _ in summary_df.values:
                             sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type[:28]).replace(' ', '_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
-                            created_sheet_names.add(sheet_name)
+                            created_sheet_names.add(sheet_name); row_num = ws_summary.max_row + 1; ws_summary.cell(row=row_num, column=1, value=anomaly_type); ws_summary.cell(row=row_num, column=2, value=count); ws_summary.cell(row=row_num, column=1).hyperlink = f"#'{sheet_name}'!A1"; ws_summary.cell(row=row_num, column=1).font = Font(underline="single", color="0563C1")
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
