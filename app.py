@@ -383,7 +383,7 @@ def check_data_manuelle(df):
         if 'diametre' in corrections: df_with_anomalies.loc[index, 'Correction Diamètre'] = corrections['diametre']
         
     df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /')
-    anomalies_df = df_with_anomalies[df_with_anomalies['Anomalie'] != ''].copy()
+    anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '') | (df_with_anomalies['Correction Marque'] != '')].copy()
     
     if not anomalies_df.empty:
         anomalies_df.reset_index(inplace=True); anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
@@ -439,14 +439,20 @@ with tab1:
                                         except ValueError: pass
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
-                        for r in dataframe_to_rows(summary_df, index=False, header=True): ws_summary.append(r)
+                        for r_idx, row_data in enumerate(dataframe_to_rows(summary_df, index=False, header=True)):
+                            if r_idx == 0: ws_summary.append(row_data) # Header
+                            else: ws_summary.append(row_data)
                         for cell in ws_summary[3]: cell.font = header_font
                         created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
                         link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#Toutes_Anomalies!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
-                        for anomaly_type, count, _ in summary_df.values:
+                        for idx, (anomaly_type, count, corrections) in enumerate(summary_df.values):
+                            current_row_num = 4 + idx
                             sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type[:28]).replace(' ', '_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
                             created_sheet_names.add(sheet_name)
+                            summary_cell = ws_summary.cell(row=current_row_num, column=1)
+                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"
+                            summary_cell.font = Font(underline="single", color="0563C1")
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
@@ -500,10 +506,14 @@ with tab2:
                         for cell in ws_summary[3]: cell.font = header_font
                         created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
                         link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#'Toutes_Anomalies'!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
-                        for anomaly_type, count, _ in summary_df.values:
+                        for idx, (anomaly_type, count, corrections) in enumerate(summary_df.values):
+                            current_row_num = 4 + idx
                             sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type).replace(' ', '_').replace('.', '').replace(':', '_').strip(); sheet_name = sheet_name[:31].rstrip('_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
                             created_sheet_names.add(sheet_name)
+                            summary_cell = ws_summary.cell(row=current_row_num, column=1)
+                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"
+                            summary_cell.font = Font(underline="single", color="0563C1")
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
@@ -577,6 +587,26 @@ with tab3:
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
                         for r in dataframe_to_rows(summary_df, index=False, header=True): ws_summary.append(r)
                         for cell in ws_summary[3]: cell.font = header_font
+                        created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
+                        link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#'Toutes_Anomalies'!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
+                        for idx, (anomaly_type, count, corrections) in enumerate(summary_df.values):
+                            current_row_num = 4 + idx
+                            sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type).replace(' ', '_').replace('.', '').replace(':', '_').strip(); sheet_name = sheet_name[:31].rstrip('_').strip(); original_sheet_name = sheet_name; s_counter = 1
+                            while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
+                            created_sheet_names.add(sheet_name)
+                            summary_cell = ws_summary.cell(row=current_row_num, column=1)
+                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"
+                            summary_cell.font = Font(underline="single", color="0563C1")
+                            ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]
+                            for r in dataframe_to_rows(filtered_df, index=False, header=True): ws_detail.append(r)
+                            for cell in ws_detail[1]: cell.font = header_font
+                            for row_num_detail, df_row_detail in enumerate(filtered_df.iterrows()):
+                                for anomaly in str(df_row_detail[1]['Anomalie']).split(' / '):
+                                    if anomaly.strip() in anomaly_columns_map_manuelle:
+                                        for col_name in anomaly_columns_map_manuelle[anomaly.strip()]:
+                                            try: ws_detail.cell(row=row_num_detail + 2, column=list(filtered_df.columns).index(col_name) + 1).fill = red_fill
+                                            except ValueError: pass
+                            for col in ws_detail.columns: ws_detail.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_manuelle.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
                 else:
