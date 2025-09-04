@@ -180,9 +180,7 @@ def check_data_radio(df):
 
     return anomalies_df, anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 2 : TÉLÉRELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_tele(file):
     try:
@@ -396,9 +394,7 @@ def check_data_manuelle(df):
     anomaly_counter = anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
     return anomalies_df, anomaly_counter
 
-# #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
-# #############################################################################
 
 tab1, tab2, tab3 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève", "✍️ Controle manuelle"])
 
