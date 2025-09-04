@@ -70,6 +70,7 @@ def check_data_radio(df):
     """Vérifie les données du DataFrame pour détecter les anomalies."""
     df_with_anomalies = df.copy()
     
+    # Initialisation des nouvelles colonnes
     df_with_anomalies['Correction Année'] = ''
     df_with_anomalies['Correction Diamètre'] = ''
     df_with_anomalies['Correction Type Compteur'] = ''
@@ -326,6 +327,40 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, is_radio=True
 
     summary_df = pd.DataFrame(summary_data, columns=["Type d'anomalie", "Nombre de cas", "Corrections Proposées"])
     return summary_df
+    
+def check_data_manuelle(df):
+    """Vérifie les données du DataFrame pour l'onglet Manuelle."""
+    # S'assurer que les colonnes requises existent
+    required_cols = ['Latitude', 'Longitude']
+    if not all(col in df.columns for col in required_cols):
+        missing = [col for col in required_cols if col not in df.columns]
+        st.error(f"Colonnes requises manquantes pour le contrôle manuel : {', '.join(missing)}")
+        st.stop()
+        
+    df_with_anomalies = df.copy()
+    df_with_anomalies['Anomalie'] = ''
+
+    # Conversion et vérification des coordonnées GPS
+    df_with_anomalies['Latitude'] = pd.to_numeric(df_with_anomalies['Latitude'], errors='coerce')
+    df_with_anomalies['Longitude'] = pd.to_numeric(df_with_anomalies['Longitude'], errors='coerce')
+
+    df_with_anomalies.loc[df_with_anomalies['Latitude'].isnull() | df_with_anomalies['Longitude'].isnull(), 'Anomalie'] += 'Coordonnées GPS non numériques / '
+    
+    coord_invalid = ((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | \
+                    ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180)))
+    df_with_anomalies.loc[coord_invalid, 'Anomalie'] += 'Coordonnées GPS invalides / '
+
+    # Finalisation
+    df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /')
+    anomalies_df = df_with_anomalies[df_with_anomalies['Anomalie'] != ''].copy()
+    
+    if not anomalies_df.empty:
+        anomalies_df.reset_index(inplace=True)
+        anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
+    
+    anomaly_counter = anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
+    
+    return anomalies_df, anomaly_counter
 
 # #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
@@ -376,7 +411,7 @@ with tab1:
                         for anomaly_type, count, _ in summary_df.values:
                             sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type[:28]).replace(' ', '_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
-                            created_sheet_names.add(sheet_name); row_num = ws_summary.max_row + 1; ws_summary.cell(row=row_num, column=1, value=anomaly_type); ws_summary.cell(row=row_num, column=2, value=count); ws_summary.cell(row=row_num, column=1).hyperlink = f"#'{sheet_name}'!A1"; ws_summary.cell(row=row_num, column=1).font = Font(underline="single", color="0563C1")
+                            created_sheet_names.add(sheet_name)
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
@@ -459,16 +494,55 @@ with tab3:
         st.success("Fichier chargé avec succès !")
         try:
             file_extension = uploaded_file_manuelle.name.split('.')[-1]
+            dtype_mapping = {'Numéro de branchement': str, 'Abonnement': str}
             if file_extension == 'csv':
-                df = pd.read_csv(uploaded_file_manuelle, sep=get_csv_delimiter_radio(uploaded_file_manuelle), dtype=str)
+                df = pd.read_csv(uploaded_file_manuelle, sep=get_csv_delimiter_radio(uploaded_file_manuelle), dtype=dtype_mapping)
             else:
-                df = pd.read_excel(uploaded_file_manuelle, dtype=str)
+                df = pd.read_excel(uploaded_file_manuelle, dtype=dtype_mapping)
             
             st.subheader("Aperçu des 5 premières lignes")
             st.dataframe(df.head())
 
             if st.button("Lancer les contrôles (Manuelle)", key="button_manuelle"):
-                st.info("La logique de contrôle pour cet onglet sera définie prochainement.")
+                with st.spinner("Contrôles en cours..."):
+                    anomalies_df, anomaly_counter = check_data_manuelle(df)
+                
+                if not anomalies_df.empty:
+                    st.error(f"Anomalies détectées : {len(anomalies_df)} lignes concernées.")
+                    st.dataframe(anomalies_df)
+                    summary_df = pd.DataFrame(anomaly_counter.reset_index())
+                    summary_df.columns = ["Type d'anomalie", "Nombre de cas"]
+                    st.subheader("Récapitulatif des anomalies")
+                    st.dataframe(summary_df)
+
+                    anomaly_columns_map_manuelle = {
+                        "Coordonnées GPS non numériques": ['Latitude', 'Longitude'],
+                        "Coordonnées GPS invalides": ['Latitude', 'Longitude']
+                    }
+                    
+                    if file_extension == 'csv':
+                        st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df.to_csv(index=False).encode('utf-8'), file_name='anomalies_manuelle.csv', mime='text/csv')
+                    elif file_extension == 'xlsx':
+                        excel_buffer = io.BytesIO(); wb = Workbook();
+                        if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
+                        ws_summary = wb.create_sheet(title="Récapitulatif", index=0); ws_all_anomalies = wb.create_sheet(title="Toutes_Anomalies", index=1)
+                        for r in dataframe_to_rows(anomalies_df, index=False, header=True): ws_all_anomalies.append(r)
+                        header_font = Font(bold=True); red_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+                        for cell in ws_all_anomalies[1]: cell.font = header_font
+                        for row_num_all, df_row in enumerate(anomalies_df.iterrows()):
+                            for anomaly in str(df_row[1]['Anomalie']).split(' / '):
+                                if anomaly.strip() in anomaly_columns_map_manuelle:
+                                    for col_name in anomaly_columns_map_manuelle[anomaly.strip()]:
+                                        try: ws_all_anomalies.cell(row=row_num_all + 2, column=list(anomalies_df.columns).index(col_name) + 1).fill = red_fill
+                                        except ValueError: pass
+                        for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
+                        ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
+                        for r in dataframe_to_rows(summary_df, index=False, header=True): ws_summary.append(r)
+                        for cell in ws_summary[3]: cell.font = header_font
+                        wb.save(excel_buffer); st.download_button(label="📥 Télécharger le rapport (.xlsx)", data=excel_buffer, file_name='anomalies_manuelle.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+                else:
+                    st.success("✅ Aucune anomalie détectée.")
 
         except Exception as e:
             st.error(f"Une erreur est survenue lors du traitement du fichier : {e}")
