@@ -351,26 +351,21 @@ def check_data_manuelle(df):
     df_with_anomalies['Correction Diamètre'] = ''
     df_with_anomalies['Correction Marque'] = ''
 
-    # Nettoyage des données numériques
     df_with_anomalies['Année de fabrication'] = df_with_anomalies['Année de fabrication'].astype(str).replace('nan', '', regex=False).apply(lambda x: str(int(float(x))) if x.replace('.', '', 1).isdigit() and x != '' else x).str.slice(-2).str.zfill(2)
     df_with_anomalies['Latitude'] = pd.to_numeric(df_with_anomalies['Latitude'], errors='coerce')
     df_with_anomalies['Longitude'] = pd.to_numeric(df_with_anomalies['Longitude'], errors='coerce')
     df_with_anomalies['Diametre'] = pd.to_numeric(df_with_anomalies['Diametre'], errors='coerce')
 
-    # Logique GPS
     df_with_anomalies.loc[df_with_anomalies['Latitude'].isnull() | df_with_anomalies['Longitude'].isnull(), 'Anomalie'] += 'Coordonnées GPS non numériques / '
     coord_invalid = ((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180)))
     df_with_anomalies.loc[coord_invalid, 'Anomalie'] += 'Coordonnées GPS invalides / '
 
-    # Logique FP2E
-    is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)']); is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
+    is_sappel = df['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)']); is_itron = df['Marque'].str.upper() == 'ITRON'
     fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False)
     
-    # Règle 2: SAPPEL/ITRON doit être FP2E
     df_with_anomalies.loc[(is_sappel | is_itron) & (~has_fp2e_format), 'Anomalie'] += 'Compteur non-FP2E pour SAPPEL/ITRON / '
 
-    # Règle 3: Incohérence Marque/Compteur
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C'); marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
     df_with_anomalies.loc[compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '; df_with_anomalies.loc[compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
     
@@ -380,7 +375,6 @@ def check_data_manuelle(df):
     compteur_starts_ID = df_with_anomalies['Numéro de compteur'].str.startswith(('I', 'D')); marque_not_itron = df_with_anomalies['Marque'].str.upper() != 'ITRON'
     df_with_anomalies.loc[compteur_starts_ID & marque_not_itron, 'Anomalie'] += 'ITRON: Incohérence Marque/Compteur / '; df_with_anomalies.loc[compteur_starts_ID & marque_not_itron, 'Correction Marque'] = 'ITRON'
 
-    # Règle 1: Vérification FP2E pour tous les compteurs au bon format
     fp2e_results = df_with_anomalies[has_fp2e_format].apply(check_fp2e_details_radio, axis=1)
     for index, result in fp2e_results.items():
         anomalies, corrections = result
