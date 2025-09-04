@@ -12,9 +12,7 @@ from openpyxl.utils import get_column_letter
 st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
-# #############################################################################
 # --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
-# #############################################################################
 
 def get_csv_delimiter_radio(file):
     """Détecte le délimiteur d'un fichier CSV."""
