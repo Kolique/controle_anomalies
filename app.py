@@ -341,7 +341,7 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="rad
     
 def check_data_manuelle(df):
     """Vérifie les données du DataFrame pour l'onglet Manuelle."""
-    required_cols = ['Latitude', 'Longitude', 'Numéro de compteur', 'Marque', 'Année de fabrication', 'Diametre']
+    required_cols = ['Latitude', 'Longitude', 'Numéro de compteur', 'Marque', 'Année de fabrication', 'Diametre', 'Type Compteur']
     if not all(col in df.columns for col in required_cols):
         missing = [col for col in required_cols if col not in df.columns]; st.error(f"Colonnes requises manquantes : {', '.join(missing)}"); st.stop()
         
@@ -350,6 +350,7 @@ def check_data_manuelle(df):
     df_with_anomalies['Correction Année'] = ''
     df_with_anomalies['Correction Diamètre'] = ''
     df_with_anomalies['Correction Marque'] = ''
+    df_with_anomalies['Correction Type Compteur'] = ''
 
     df_with_anomalies['Année de fabrication'] = df_with_anomalies['Année de fabrication'].astype(str).replace('nan', '', regex=False).apply(lambda x: str(int(float(x))) if x.replace('.', '', 1).isdigit() and x != '' else x).str.slice(-2).str.zfill(2)
     df_with_anomalies['Latitude'] = pd.to_numeric(df_with_anomalies['Latitude'], errors='coerce')
@@ -415,9 +416,8 @@ with tab1:
     if uploaded_file_radio:
         st.success("Fichier chargé avec succès !");
         try:
-            file_extension = uploaded_file_radio.name.split('.')[-1]; dtype_mapping = {'Numéro de branchement': str, 'Abonnement': str}
-            if file_extension == 'csv': df = pd.read_csv(uploaded_file_radio, sep=get_csv_delimiter_radio(uploaded_file_radio), dtype=dtype_mapping)
-            elif file_extension == 'xlsx': df = pd.read_excel(uploaded_file_radio, dtype=dtype_mapping)
+            df = pd.read_excel(uploaded_file_radio, dtype=str) if uploaded_file_radio.name.endswith('xlsx') else pd.read_csv(uploaded_file_radio, sep=get_csv_delimiter_radio(uploaded_file_radio), dtype=str)
+            df = df.iloc[:-2].copy()
             st.subheader("Aperçu des 5 premières lignes"); st.dataframe(df.head())
             if st.button("Lancer les contrôles (Radiorelève)", key="button_radio"):
                 with st.spinner("Contrôles en cours..."): anomalies_df, anomaly_counter = check_data_radio(df)
@@ -426,8 +426,8 @@ with tab1:
                     summary_df = create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="radio")
                     st.subheader("Récapitulatif des anomalies"); st.dataframe(summary_df)
                     anomaly_columns_map = {"KAMSTRUP: Protocole ≠ WMS": ['Protocole Radio'], "SAPPEL: Protocole ≠ OMS (année > 22)": ['Protocole Radio'], "SAPPEL: Protocole ≠ WMS (année <= 22)": ['Protocole Radio'], "Marque manquante": ['Marque'], "Numéro de compteur manquant": ['Numéro de compteur'], "Numéro de tête manquant": ['Numéro de tête'], "Coordonnées GPS non numériques": ['Latitude', 'Longitude'], "Coordonnées GPS invalides": ['Latitude', 'Longitude'], "Diamètre manquant": ['Diametre'], "Année de fabrication manquante": ['Année de fabrication'], "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'], "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'], "KAMSTRUP: Diamètre hors plage": ['Diametre'], "SAPPEL: Tête DME ≠ 15 caractères": ['Numéro de tête'], "SAPPEL: Compteur ne commence pas par C ou H": ['Numéro de compteur'], "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'], "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'], "ITRON: Compteur ne commence pas par I ou D": ['Numéro de compteur'], "Le numéro de compteur n'est pas conforme": ['Numéro de compteur'], "Le diamètre n'est pas conforme": ['Diametre'], "L'année de millésime n'est pas conforme": ['Année de fabrication'], "Incohérence Type Compteur": ['Type Compteur']}
-                    if file_extension == 'csv': st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
-                    elif file_extension == 'xlsx':
+                    if uploaded_file_radio.name.endswith('csv'): st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_radio(uploaded_file_radio)).encode('utf-8'), file_name='anomalies_radioreleve.csv', mime='text/csv')
+                    elif uploaded_file_radio.name.endswith('xlsx'):
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
                         ws_summary = wb.create_sheet(title="Récapitulatif", index=0); ws_all_anomalies = wb.create_sheet(title="Toutes_Anomalies", index=1)
@@ -442,18 +442,15 @@ with tab1:
                                         except ValueError: pass
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
-                        for r_idx, row_data in enumerate(dataframe_to_rows(summary_df, index=False, header=True)):
-                            ws_summary.append(row_data)
+                        for r_idx, row_data in enumerate(dataframe_to_rows(summary_df, index=False, header=True)): ws_summary.append(row_data)
                         for cell in ws_summary[3]: cell.font = header_font
                         created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
                         link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#Toutes_Anomalies!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
                         for idx, (anomaly_type, count, corrections) in enumerate(summary_df.values):
-                            current_row_num = 4 + idx
-                            sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type[:28]).replace(' ', '_').strip(); original_sheet_name = sheet_name; s_counter = 1
+                            current_row_num = 4 + idx; sheet_name = re.sub(r'[\\/?*\[\]:()\'"<>|]', '', anomaly_type[:28]).replace(' ', '_').strip(); original_sheet_name = sheet_name; s_counter = 1
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
                             created_sheet_names.add(sheet_name)
-                            summary_cell = ws_summary.cell(row=current_row_num, column=1)
-                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"; summary_cell.font = Font(underline="single", color="0563C1")
+                            summary_cell = ws_summary.cell(row=current_row_num, column=1); summary_cell.hyperlink = f"#'{sheet_name}'!A1"; summary_cell.font = Font(underline="single", color="0563C1")
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
@@ -476,9 +473,8 @@ with tab2:
     if uploaded_file_tele:
         st.success("Fichier chargé avec succès !");
         try:
-            file_extension = uploaded_file_tele.name.split('.')[-1]; dtype_mapping = {'Numéro de branchement': str, 'Abonnement': str}
-            if file_extension == 'csv': df = pd.read_csv(uploaded_file_tele, sep=get_csv_delimiter_tele(uploaded_file_tele), dtype=dtype_mapping)
-            elif file_extension == 'xlsx': df = pd.read_excel(uploaded_file_tele, dtype=dtype_mapping)
+            df = pd.read_excel(uploaded_file_tele, dtype=str) if uploaded_file_tele.name.endswith('xlsx') else pd.read_csv(uploaded_file_tele, sep=get_csv_delimiter_tele(uploaded_file_tele), dtype=str)
+            df = df.iloc[:-2].copy()
             st.subheader("Aperçu des 5 premières lignes"); st.dataframe(df.head())
             if st.button("Lancer les contrôles (Télérelève)", key="button_tele"):
                 with st.spinner("Contrôles en cours..."): anomalies_df, anomaly_counter = check_data_tele(df)
@@ -487,8 +483,8 @@ with tab2:
                     summary_df = create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="tele")
                     st.subheader("Récapitulatif des anomalies"); st.dataframe(summary_df)
                     anomaly_columns_map = {"Protocole incorrect (devrait être LRA)": ['Protocole Radio'], "Protocole incorrect (devrait être SGX)": ['Protocole Radio'], "Marque manquante": ['Marque'],"Numéro de compteur manquant": ['Numéro de compteur'],"Numéro de tête manquant": ['Numéro de tête'],"Coordonnées GPS non numériques": ['Latitude', 'Longitude'],"Coordonnées GPS invalides": ['Latitude', 'Longitude'],"Diamètre manquant": ['Diametre'],"Année de fabrication manquante": ['Année de fabrication'],"KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],"KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],"KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],"SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],"SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],"SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],"ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],"ITRON manuel: doit commencer par \"I\" ou \"D\"": ['Numéro de compteur'],"SAPPEL manuel: doit commencer par \"C\" ou \"H\"": ['Numéro de compteur'],"Format de compteur non FP2E": ['Numéro de compteur'],"Année millésime non conforme FP2E": ['Année de fabrication'],"Diamètre non conforme FP2E": ['Diametre'], "Incohérence Type Compteur": ['Type Compteur']}
-                    if file_extension == 'csv': st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
-                    elif file_extension == 'xlsx':
+                    if uploaded_file_tele.name.endswith('csv'): st.download_button(label="📥 Télécharger le rapport en CSV", data=anomalies_df_display.to_csv(index=False, sep=get_csv_delimiter_tele(uploaded_file_tele)).encode('utf-8'), file_name='anomalies_telerelève.csv', mime='text/csv')
+                    elif uploaded_file_tele.name.endswith('xlsx'):
                         excel_buffer = io.BytesIO(); wb = Workbook();
                         if "Sheet" in wb.sheetnames: wb.remove(wb["Sheet"])
                         ws_summary = wb.create_sheet(title="Récapitulatif", index=0); ws_all_anomalies = wb.create_sheet(title="Toutes_Anomalies", index=1)
@@ -545,6 +541,7 @@ with tab3:
             else:
                 df = pd.read_excel(uploaded_file_manuelle, dtype=dtype_mapping)
             
+            df = df.iloc[:-2].copy()
             st.subheader("Aperçu des 5 premières lignes")
             st.dataframe(df.head())
 
@@ -566,7 +563,8 @@ with tab3:
                         "Compteur non-FP2E pour SAPPEL/ITRON": ['Numéro de compteur'],
                         "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
                         "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],
-                        "ITRON: Incohérence Marque/Compteur": ['Marque']
+                        "ITRON: Incohérence Marque/Compteur": ['Marque'],
+                        "Incohérence Type Compteur": ['Type Compteur']
                     }
                     
                     if file_extension == 'csv':
@@ -586,7 +584,8 @@ with tab3:
                                         except ValueError: pass
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
-                        for r in dataframe_to_rows(summary_df, index=False, header=True): ws_summary.append(r)
+                        for r_idx, row_data in enumerate(dataframe_to_rows(summary_df, index=False, header=True)):
+                            ws_summary.append(row_data)
                         for cell in ws_summary[3]: cell.font = header_font
                         created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
                         link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#'Toutes_Anomalies'!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
