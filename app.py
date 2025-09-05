@@ -368,16 +368,13 @@ def check_data_manuelle(df):
     df_with_anomalies.loc[(is_sappel | is_itron) & (~has_fp2e_format), 'Anomalie'] += 'Compteur non-FP2E pour SAPPEL/ITRON / '
 
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C'); marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '; df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
     
     compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H'); marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '; df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
 
     compteur_starts_ID = df_with_anomalies['Numéro de compteur'].str.startswith(('I', 'D')); marque_not_itron = df_with_anomalies['Marque'].str.upper() != 'ITRON'
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Anomalie'] += 'ITRON: Incohérence Marque/Compteur / '
-    df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Correction Marque'] = 'ITRON'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Anomalie'] += 'ITRON: Incohérence Marque/Compteur / '; df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Correction Marque'] = 'ITRON'
 
     fp2e_results = df_with_anomalies[has_fp2e_format].apply(check_fp2e_details_radio, axis=1)
     for index, result in fp2e_results.items():
