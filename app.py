@@ -12,7 +12,9 @@ from openpyxl.utils import get_column_letter
 st.set_page_config(layout="wide")
 st.title("Outil de Contrôle de Données")
 
+# #############################################################################
 # --- CODE POUR L'APPLICATION 1 : RADIORELÈVE ---
+# #############################################################################
 
 def get_csv_delimiter_radio(file):
     """Détecte le délimiteur d'un fichier CSV."""
@@ -180,7 +182,9 @@ def check_data_radio(df):
 
     return anomalies_df, anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
 
+# #############################################################################
 # --- CODE POUR L'APPLICATION 2 : TÉLÉRELÈVE ---
+# #############################################################################
 
 def get_csv_delimiter_tele(file):
     try:
@@ -356,20 +360,23 @@ def check_data_manuelle(df):
     coord_invalid = ((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180)))
     df_with_anomalies.loc[coord_invalid, 'Anomalie'] += 'Coordonnées GPS invalides / '
 
-    is_sappel = df['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)']); is_itron = df['Marque'].str.upper() == 'ITRON'
+    is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)']); is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
     fp2e_regex = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(fp2e_regex, na=False)
     
     df_with_anomalies.loc[(is_sappel | is_itron) & (~has_fp2e_format), 'Anomalie'] += 'Compteur non-FP2E pour SAPPEL/ITRON / '
 
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C'); marque_not_sappel_C = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (C)'
-    df_with_anomalies.loc[compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '; df_with_anomalies.loc[compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (C) / '
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_C & marque_not_sappel_C, 'Correction Marque'] = 'SAPPEL (C)'
     
     compteur_starts_H = df_with_anomalies['Numéro de compteur'].str.startswith('H'); marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
-    df_with_anomalies.loc[compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '; df_with_anomalies.loc[compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
 
     compteur_starts_ID = df_with_anomalies['Numéro de compteur'].str.startswith(('I', 'D')); marque_not_itron = df_with_anomalies['Marque'].str.upper() != 'ITRON'
-    df_with_anomalies.loc[compteur_starts_ID & marque_not_itron, 'Anomalie'] += 'ITRON: Incohérence Marque/Compteur / '; df_with_anomalies.loc[compteur_starts_ID & marque_not_itron, 'Correction Marque'] = 'ITRON'
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Anomalie'] += 'ITRON: Incohérence Marque/Compteur / '
+    df_with_anomalies.loc[has_fp2e_format & compteur_starts_ID & marque_not_itron, 'Correction Marque'] = 'ITRON'
 
     fp2e_results = df_with_anomalies[has_fp2e_format].apply(check_fp2e_details_radio, axis=1)
     for index, result in fp2e_results.items():
@@ -394,7 +401,9 @@ def check_data_manuelle(df):
     anomaly_counter = anomalies_df['Anomalie'].str.split(' / ').explode().value_counts()
     return anomalies_df, anomaly_counter
 
+# #############################################################################
 # --- CRÉATION DES ONGLETS ET INTERFACE UTILISATEUR ---
+# #############################################################################
 
 tab1, tab2, tab3 = st.tabs(["📊 Contrôle Radiorelève", "📡 Contrôle Télérelève", "✍️ Controle manuelle"])
 
@@ -434,8 +443,7 @@ with tab1:
                         for col in ws_all_anomalies.columns: ws_all_anomalies.column_dimensions[get_column_letter(col[0].column)].width = max(len(str(cell.value)) for cell in col if cell.value) + 2
                         ws_summary['A1'] = "Récapitulatif des anomalies"; ws_summary['A1'].font = Font(bold=True, size=16); ws_summary.append([]); 
                         for r_idx, row_data in enumerate(dataframe_to_rows(summary_df, index=False, header=True)):
-                            if r_idx == 0: ws_summary.append(row_data) # Header
-                            else: ws_summary.append(row_data)
+                            ws_summary.append(row_data)
                         for cell in ws_summary[3]: cell.font = header_font
                         created_sheet_names = {"Récapitulatif", "Toutes_Anomalies"}
                         link_row = ws_summary.max_row + 2; ws_summary.cell(row=link_row, column=1, value="Toutes les anomalies").hyperlink = f"#Toutes_Anomalies!A1"; ws_summary.cell(row=link_row, column=1).font = Font(underline="single", color="0563C1"); ws_summary.cell(row=link_row, column=2, value=len(anomalies_df))
@@ -445,8 +453,7 @@ with tab1:
                             while sheet_name in created_sheet_names: sheet_name = f"{original_sheet_name[:28]}_{s_counter}"; s_counter += 1
                             created_sheet_names.add(sheet_name)
                             summary_cell = ws_summary.cell(row=current_row_num, column=1)
-                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"
-                            summary_cell.font = Font(underline="single", color="0563C1")
+                            summary_cell.hyperlink = f"#'{sheet_name}'!A1"; summary_cell.font = Font(underline="single", color="0563C1")
                             ws_detail = wb.create_sheet(title=sheet_name); filtered_df = anomalies_df[anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), regex=True)]; filtered_df_display = filtered_df.drop(columns=['Anomalie Détaillée FP2E'], errors='ignore')
                             for r in dataframe_to_rows(filtered_df_display, index=False, header=True): ws_detail.append(r)
                             for cell in ws_detail[1]: cell.font = header_font
