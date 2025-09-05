@@ -325,7 +325,8 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="rad
             'Le diamètre n\'est pas conforme': 'Correction Diamètre',
             'SAPPEL: Incohérence Marque/Compteur (C)': 'Correction Marque',
             'SAPPEL: Incohérence Marque/Compteur (H)': 'Correction Marque',
-            'ITRON: Incohérence Marque/Compteur': 'Correction Marque'
+            'ITRON: Incohérence Marque/Compteur': 'Correction Marque',
+            'Incohérence Type Compteur': 'Correction Type Compteur'
         }
 
 
@@ -383,16 +384,39 @@ def check_data_manuelle(df):
         if 'annee' in corrections: df_with_anomalies.loc[index, 'Correction Année'] = corrections['annee']
         if 'diametre' in corrections: df_with_anomalies.loc[index, 'Correction Diamètre'] = corrections['diametre']
         
+    starts_with_key_letter = df_with_anomalies['Numéro de compteur'].str.startswith(('C', 'H', 'I', 'D'))
+    condition_type_compteur = has_fp2e_format & starts_with_key_letter
+    rows_to_check = df_with_anomalies[condition_type_compteur].copy()
+    if not rows_to_check.empty:
+        sappel_mask = rows_to_check['Numéro de compteur'].str.startswith(('C', 'H'))
+        sappel_rows = rows_to_check[sappel_mask]
+        if not sappel_rows.empty:
+            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
+            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
+            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
+            if not incorrect_indices_sappel.empty:
+                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
+        
+        itron_mask = rows_to_check['Numéro de compteur'].str.startswith(('I', 'D'))
+        itron_rows = rows_to_check[itron_mask]
+        if not itron_rows.empty:
+            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
+            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
+            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
+            if not incorrect_indices_itron.empty:
+                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '; df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
+
     df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /')
-    anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '') | (df_with_anomalies['Correction Marque'] != '')].copy()
+    anomalies_df = df_with_anomalies[(df_with_anomalies['Anomalie'] != '') | (df_with_anomalies['Correction Année'] != '') | (df_with_anomalies['Correction Diamètre'] != '') | (df_with_anomalies['Correction Marque'] != '') | (df_with_anomalies['Correction Type Compteur'] != '')].copy()
     
     if not anomalies_df.empty:
         anomalies_df.reset_index(inplace=True); anomalies_df.rename(columns={'index': 'Index original'}, inplace=True)
         try:
-            cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Marque')
+            cols = list(anomalies_df.columns); cols.remove('Correction Année'); cols.remove('Correction Diamètre'); cols.remove('Correction Marque'); cols.remove('Correction Type Compteur')
             pos_annee = cols.index('Année de fabrication') + 1; cols.insert(pos_annee, 'Correction Année')
             pos_diametre = cols.index('Diametre') + 1; cols.insert(pos_diametre, 'Correction Diamètre')
             pos_marque = cols.index('Marque') + 1; cols.insert(pos_marque, 'Correction Marque')
+            pos_type = cols.index('Type Compteur') + 1; cols.insert(pos_type, 'Correction Type Compteur')
             anomalies_df = anomalies_df[cols]
         except ValueError: pass
     
